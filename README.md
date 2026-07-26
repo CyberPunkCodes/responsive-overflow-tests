@@ -22,31 +22,126 @@ actually cross the right edge and reports the worst offenders (tag, id,
 class, right-edge position, width) so you're not stuck bisecting the page by
 hand.
 
-## Install
+## Getting started from scratch
+
+If your project doesn't already have Playwright wired up, here's the whole
+path from a bare repo to a green run. Skip whichever steps you've already
+done.
+
+### 1. Install the package + its peer dependency
+
+`@playwright/test` is a **peer dependency** — it isn't pulled in for you, so
+install both:
 
 ```bash
-npm install --save-dev responsive-overflow-tests
+npm install --save-dev responsive-overflow-tests @playwright/test
 ```
 
-`@playwright/test` is a peer dependency — install it in the consuming
-project if it isn't already there.
+### 2. Install a browser
 
-## Quick start
+Playwright drives real browser binaries, which are separate from the npm
+package. Chromium alone is enough here:
 
-In any Playwright spec file, in a project that already has a `baseURL`
-configured:
+```bash
+npx playwright install chromium
+```
+
+### 3. Add a `playwright.config.ts` (with `baseURL` **and** `webServer`)
+
+This is the step bare projects miss. Playwright needs two things: a
+`baseURL` your route paths resolve against, and — unless you boot the site
+yourself — a `webServer` block so Playwright starts your dev/preview server
+before the tests and shuts it down after. Without `webServer`, every route
+fails with connection-refused.
+
+Fastest path: run `npx responsive-overflow-tests init` (see
+[Zero-config scaffolding](#zero-config-scaffolding-init)) to drop this file
+in for you. Or create `playwright.config.ts` at the project root by hand:
+
+```ts
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  testDir: "./e2e",
+  use: {
+    baseURL: "http://localhost:4321",
+  },
+  webServer: {
+    command: "npm run dev",
+    url: "http://localhost:4321",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
+});
+```
+
+Adapt `webServer.command` and the two `url`s to how your project serves
+locally — they must point at the same host/port:
+
+| Stack | `command` | `url` |
+|---|---|---|
+| Astro (dev) | `npm run dev` | `http://localhost:4321` |
+| Astro (built preview) | `npm run build && npm run preview` | `http://localhost:4321` |
+| Next.js (dev) | `npm run dev` | `http://localhost:3000` |
+| Plain static build | `npx http-server ./dist -p 8080` | `http://localhost:8080` |
+
+`reuseExistingServer: !process.env.CI` lets Playwright attach to a server you
+already have running locally, while always booting a fresh one in CI.
+
+### 4. Add a spec file
+
+Playwright discovers `*.spec.ts` files under `testDir` (`./e2e` in the config
+above). Create `e2e/overflow.spec.ts`:
+
+```ts
+import { defineOverflowTests } from "responsive-overflow-tests";
+
+defineOverflowTests({ routes: ["/"], tier: "light" });
+```
+
+`defineOverflowTests` calls Playwright's `test.describe()`/`test()` under the
+hood, so it must run at module load inside a spec file — not inside another
+`test()` or a helper you import lazily.
+
+### 5. List your routes and run
+
+Add the routes you want guarded to the `routes` array (paths relative to
+`baseURL`), then:
+
+```bash
+npx playwright test
+```
+
+You'll get one test per route × viewport combination, each titled like:
+
+```
+no horizontal overflow — /pricing @ md-768 (768px)
+```
+
+## Zero-config scaffolding (`init`)
+
+To skip steps 3 and 4, run:
+
+```bash
+npx responsive-overflow-tests init
+```
+
+It writes a starter `playwright.config.ts` (with `baseURL` + `webServer`) and
+`e2e/overflow.spec.ts` calling `defineOverflowTests`, then prints the
+remaining steps. It's **non-destructive** — it never overwrites an existing
+file, only creates missing ones, so it's safe to re-run. You still handle
+steps 1, 2, and 5 (install, browser, your routes) and adapt the generated
+`webServer.command`/`baseURL` to your stack.
+
+## Quick start (Playwright already configured)
+
+If your project already has a working Playwright setup with a `baseURL`, the
+whole integration is one call in any spec file under your `testDir`:
 
 ```ts
 import { defineOverflowTests } from "responsive-overflow-tests";
 
 defineOverflowTests({ routes: ["/", "/about", "/pricing"], tier: "light" });
-```
-
-That registers one Playwright test per route × viewport combination, each
-titled like:
-
-```
-no horizontal overflow — /pricing @ md-768 (768px)
 ```
 
 Run it the same way you run any other Playwright spec (`npx playwright test`).
@@ -69,7 +164,8 @@ interface OverflowTestOptions {
 - **`tier`** — how much viewport coverage to run. Tiers are **cumulative**:
   `medium` includes everything in `light`; `full` includes everything in
   `medium`. Defaults to the `RESPONSIVE_TIER` env var (lowercased), or
-  `'light'` if that's unset. A typical cadence:
+  `'light'` if that's unset. An unrecognized value falls back to `light`. A
+  typical cadence:
   - `light` — every commit / PR. Fast, catches the common breakpoints.
   - `medium` — after a significant layout change, before merging.
   - `full` — pre-release / nightly. The widest net: on `breakpoints`,
@@ -105,6 +201,7 @@ interface OverflowTestOptions {
   Pass `false` to skip the status check (useful for routes that
   intentionally redirect or 404).
 - **`label`** — optional label for the generated `test.describe()` block.
+  Default `'responsive overflow'`.
 
 ## Other exports
 
@@ -119,11 +216,15 @@ import {
 
 - **`overflowReport(page)`** — the underlying detection primitive, if you
   want to run the check manually inside a custom test instead of using
-  `defineOverflowTests`.
+  `defineOverflowTests`. Returns `{ scrollWidth, clientWidth, offenders }`.
 - **`BREAKPOINT_TIERS`** / **`DEVICE_TIERS`** — the built-in viewport tier
-  tables, if you want to inspect or extend them.
+  tables (`Record<"light" | "medium" | "full", Viewport[]>`), if you want to
+  inspect or extend them.
 - **`cumulative(tiers, tier)`** — resolves a tier name to its cumulative
   viewport list (used internally, exposed for custom tooling).
+
+The `OverflowTestOptions`, `Viewport`, `Tier`, and `ViewportSource` types are
+exported too.
 
 ## License
 

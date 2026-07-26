@@ -1,6 +1,6 @@
 {
   "name": "responsive-overflow-tests",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "description": "Framework-agnostic Playwright tests that catch horizontal-overflow layout breaks across Tailwind breakpoints and real-device viewports — no screenshots, no AI.",
   "license": "MIT",
@@ -21,6 +21,9 @@
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "responsive-overflow-tests": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
