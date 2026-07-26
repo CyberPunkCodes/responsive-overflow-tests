@@ -1,6 +1,6 @@
 {
   "name": "responsive-overflow-tests",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "Framework-agnostic Playwright tests that catch horizontal-overflow layout breaks across Tailwind breakpoints and real-device viewports — no screenshots, no AI.",
   "license": "MIT",

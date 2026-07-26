@@ -88,25 +88,51 @@ locally — they must point at the same host/port:
 `reuseExistingServer: !process.env.CI` lets Playwright attach to a server you
 already have running locally, while always booting a fresh one in CI.
 
-### 4. Add a spec file
+### 4. Add the routes config at your project root
+
+The list of routes to guard lives in **one plain file at your project root**,
+`responsive.routes.ts` — this is the only file you edit per site. Create it:
+
+```ts
+// Routes checked by the responsive-overflow gate. Edit this list — it is the
+// only thing you change per site.
+export const responsiveRoutes = [
+  "/",
+  "/about",
+  "/pricing",
+];
+```
+
+Keeping routes in a root-level config (rather than inline in the spec) means
+the thing you actually maintain per project is a flat, obvious list — no
+Playwright boilerplate around it, easy to eyeball in a diff, and the spec
+never has to change.
+
+### 5. Add a stub spec that imports it
 
 Playwright discovers `*.spec.ts` files under `testDir` (`./e2e` in the config
-above). Create `e2e/overflow.spec.ts`:
+above). Create `e2e/overflow.spec.ts` as a thin stub that imports the root
+routes file and hands it to `defineOverflowTests`:
 
 ```ts
 import { defineOverflowTests } from "responsive-overflow-tests";
+import { responsiveRoutes } from "../responsive.routes";
 
-defineOverflowTests({ routes: ["/"], tier: "light" });
+defineOverflowTests({
+  label: "responsive overflow",
+  routes: responsiveRoutes,
+});
 ```
 
-`defineOverflowTests` calls Playwright's `test.describe()`/`test()` under the
-hood, so it must run at module load inside a spec file — not inside another
-`test()` or a helper you import lazily.
+The `../` climbs out of `e2e/` up to the project root where
+`responsive.routes.ts` lives. `defineOverflowTests` calls Playwright's
+`test.describe()`/`test()` under the hood, so it must run at module load
+inside a spec file — not inside another `test()` or a helper you import
+lazily.
 
-### 5. List your routes and run
+### 6. Run it
 
-Add the routes you want guarded to the `routes` array (paths relative to
-`baseURL`), then:
+With your routes listed in `responsive.routes.ts`, run:
 
 ```bash
 npx playwright test
@@ -120,31 +146,55 @@ no horizontal overflow — /pricing @ md-768 (768px)
 
 ## Zero-config scaffolding (`init`)
 
-To skip steps 3 and 4, run:
+To skip steps 3, 4, and 5, run:
 
 ```bash
 npx responsive-overflow-tests init
 ```
 
-It writes a starter `playwright.config.ts` (with `baseURL` + `webServer`) and
-`e2e/overflow.spec.ts` calling `defineOverflowTests`, then prints the
-remaining steps. It's **non-destructive** — it never overwrites an existing
-file, only creates missing ones, so it's safe to re-run. You still handle
-steps 1, 2, and 5 (install, browser, your routes) and adapt the generated
-`webServer.command`/`baseURL` to your stack.
+It writes three files, creating each only if it's absent:
+
+| File | What it is |
+|---|---|
+| `playwright.config.ts` (project root) | Starter config with `baseURL` + `webServer`. |
+| `responsive.routes.ts` (project root) | The routes list — **the only file you edit per site.** Seeded with a couple of placeholder routes. |
+| `e2e/overflow.spec.ts` | Thin stub that imports `responsiveRoutes` from the root config and calls `defineOverflowTests`. |
+
+It's **non-destructive and idempotent** — it never overwrites an existing
+file, only creates missing ones (printing which were created vs. skipped), so
+it's safe to re-run and won't clobber your hand-edited routes. You still
+handle steps 1 and 2 (install, browser), then edit `responsive.routes.ts`
+with your real routes and adapt the generated `webServer.command`/`baseURL`
+to your stack.
 
 ## Quick start (Playwright already configured)
 
-If your project already has a working Playwright setup with a `baseURL`, the
-whole integration is one call in any spec file under your `testDir`:
+If your project already has a working Playwright setup with a `baseURL`, keep
+your routes in a `responsive.routes.ts` at the project root and point a stub
+spec at it:
 
 ```ts
-import { defineOverflowTests } from "responsive-overflow-tests";
+// responsive.routes.ts (project root)
+export const responsiveRoutes = ["/", "/about", "/pricing"];
+```
 
-defineOverflowTests({ routes: ["/", "/about", "/pricing"], tier: "light" });
+```ts
+// e2e/overflow.spec.ts (under your testDir)
+import { defineOverflowTests } from "responsive-overflow-tests";
+import { responsiveRoutes } from "../responsive.routes";
+
+defineOverflowTests({ label: "responsive overflow", routes: responsiveRoutes });
 ```
 
 Run it the same way you run any other Playwright spec (`npx playwright test`).
+Adjust the `../` in the import to however many directories your spec sits
+below the root routes file.
+
+> **Shorthand:** `routes` also accepts an inline array
+> (`defineOverflowTests({ routes: ["/", "/about"] })`) if you'd rather not
+> keep a separate file. The root `responsive.routes.ts` is the recommended
+> default because it keeps the per-site list in one obvious place, but inline
+> is fully supported.
 
 ## Options
 
@@ -161,6 +211,9 @@ interface OverflowTestOptions {
 ```
 
 - **`routes`** (required) — paths relative to the Playwright `baseURL`.
+  Recommended: keep this list in `responsive.routes.ts` at your project root
+  and import it into the spec (see [Quick start](#quick-start-playwright-already-configured));
+  an inline array works too.
 - **`tier`** — how much viewport coverage to run. Tiers are **cumulative**:
   `medium` includes everything in `light`; `full` includes everything in
   `medium`. Defaults to the `RESPONSIVE_TIER` env var (lowercased), or

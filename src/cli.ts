@@ -30,13 +30,26 @@ export default defineConfig({
 });
 `;
 
-const SPEC = `import { defineOverflowTests } from "responsive-overflow-tests";
+// The routes config lives at the project root and is the ONLY file the user
+// edits per site. The spec below just imports it.
+const ROUTES = `// Routes checked by the responsive-overflow gate. Edit this list — it is the
+// only thing you change per site. Paths are relative to the \`baseURL\` in
+// playwright.config.ts.
+export const responsiveRoutes = [
+  "/",
+  "/about",
+  "/pricing",
+];
+`;
 
-// Routes are relative to the \`baseURL\` in playwright.config.ts.
-// Add every route you want guarded against horizontal overflow.
+// Stub spec placed under the Playwright testDir (./e2e). It imports the
+// root-level routes config, so the relative path climbs one level out of e2e/.
+const SPEC = `import { defineOverflowTests } from "responsive-overflow-tests";
+import { responsiveRoutes } from "../responsive.routes";
+
 defineOverflowTests({
-  routes: ["/"],
-  tier: "light",
+  label: "responsive overflow",
+  routes: responsiveRoutes,
 });
 `;
 
@@ -53,6 +66,7 @@ function init(): void {
   const cwd = process.cwd();
   const targets: Target[] = [
     { path: resolve(cwd, "playwright.config.ts"), contents: PLAYWRIGHT_CONFIG },
+    { path: resolve(cwd, "responsive.routes.ts"), contents: ROUTES },
     { path: resolve(cwd, join("e2e", "overflow.spec.ts")), contents: SPEC },
   ];
 
@@ -74,7 +88,7 @@ function init(): void {
       "       npm install --save-dev @playwright/test",
       "       npx playwright install chromium",
       "  2. Adjust webServer.command / baseURL in playwright.config.ts for your stack.",
-      "  3. Edit the routes array in e2e/overflow.spec.ts.",
+      "  3. Edit your routes in responsive.routes.ts (the only file you change per site).",
       "  4. Run it:  npx playwright test",
       "",
     ].join("\n")
@@ -94,7 +108,7 @@ function main(): void {
       "responsive-overflow-tests",
       "",
       "Usage:",
-      "  npx responsive-overflow-tests init    scaffold playwright.config.ts + e2e/overflow.spec.ts",
+      "  npx responsive-overflow-tests init    scaffold playwright.config.ts + responsive.routes.ts + e2e/overflow.spec.ts",
       "",
     ].join("\n")
   );
