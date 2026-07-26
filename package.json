@@ -1,0 +1,49 @@
+{
+  "name": "responsive-overflow-tests",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Framework-agnostic Playwright tests that catch horizontal-overflow layout breaks across Tailwind breakpoints and real-device viewports — no screenshots, no AI.",
+  "license": "MIT",
+  "author": "CyberPunk",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CyberPunkCodes/responsive-overflow-tests.git"
+  },
+  "keywords": [
+    "playwright",
+    "responsive",
+    "overflow",
+    "tailwind",
+    "viewport",
+    "layout",
+    "testing",
+    "ci"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepare": "npm run build"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
