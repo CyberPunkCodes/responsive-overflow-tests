@@ -24,12 +24,8 @@ hand.
 
 ## Install
 
-Not yet published to npm. For now, consume it via a local path or a git URL:
-
 ```bash
-npm install --save-dev github:CyberPunkCodes/responsive-overflow-tests
-# or, from a local checkout:
-npm install --save-dev /path/to/responsive-overflow-tests
+npm install --save-dev responsive-overflow-tests
 ```
 
 `@playwright/test` is a peer dependency — install it in the consuming
@@ -76,8 +72,9 @@ interface OverflowTestOptions {
   `'light'` if that's unset. A typical cadence:
   - `light` — every commit / PR. Fast, catches the common breakpoints.
   - `medium` — after a significant layout change, before merging.
-  - `full` — pre-release / nightly. Widest net, including foldables,
-    tablets, and stress-test widths.
+  - `full` — pre-release / nightly. The widest net: on `breakpoints`,
+    stress widths from 280px up to 2560px; on `devices`, foldables,
+    tablets, and the tightest mobile sizes.
 
   ```bash
   RESPONSIVE_TIER=full npx playwright test
