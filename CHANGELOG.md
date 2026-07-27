@@ -3,7 +3,7 @@
 This project is pre-1.0. Per semver, breaking changes may land in a minor
 release; they are always listed here first.
 
-## Unreleased
+## 0.3.2
 
 Documentation only — no API change, no behaviour change in the check itself.
 Everything below came out of rolling the package onto real projects.
