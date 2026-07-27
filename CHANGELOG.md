@@ -3,7 +3,10 @@
 This project is pre-1.0. Per semver, breaking changes may land in a minor
 release; they are always listed here first.
 
-## Unreleased
+## 0.3.1
+
+Documentation and `init` output only — no API change, no behaviour change in
+the check itself.
 
 ### Added
 
