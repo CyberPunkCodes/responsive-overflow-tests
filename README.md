@@ -144,6 +144,23 @@ active tier, and shuts down. One test per route × viewport.
 }
 ```
 
+### 7. Tell your AI agent about it
+
+If you work with an AI coding agent, it won't discover any of this on its own.
+Paste this to it once:
+
+> Read `node_modules/responsive-overflow-tests/ADVANCED.md`, find the
+> "AI agents & automated workflows" section, and add its guidance block to this
+> project's `AGENTS.md` (or `CLAUDE.md` if that's what we use).
+
+`ADVANCED.md` ships inside the package, so this needs no network access. The
+agent ends up with the rules written into your project's own instructions:
+which tier to run when, that a failure means fixing the element rather than
+raising `tolerancePx`, and to add new routes to the config.
+
+See [AI agents and automated workflows](ADVANCED.md#ai-agents--automated-workflows)
+for the block itself and the reasoning behind the tiers.
+
 ## Coverage tiers
 
 One knob: `tier`. It scales **both** the viewports and the routes, and the
@@ -195,6 +212,24 @@ replaced the old API.
 - It does not need or produce baseline images.
 - It does not check pages it isn't told about — routes are an explicit list,
   not a crawl.
+
+## Pair it with a screenshot pass
+
+This is the deterministic half. It will never tell you that two elements
+overlap, that a heading wrapped badly, or that a section is unreadable at
+390px — all of which fit inside the viewport and pass here.
+
+For that, run a screenshot pass and actually look at the output. If you use
+Claude Code, [`frontend-screenshot-verification`](https://github.com/CyberPunkCodes/claude-dev-plugins/tree/main/plugins/frontend-screenshot-verification)
+is a plugin that renders a route across a tiered matrix of real device
+viewports so an agent can review them. Any screenshot tool works — the point
+is that something has to exercise judgment.
+
+The two overlap slightly: that plugin also flags horizontal overflow, since
+it's free once the page is loaded. Treat this package as the authoritative
+one — it names the offending element, returns a non-zero exit code, and costs
+nothing to run, so it's the one that belongs in `npm test` and CI. The
+screenshot pass is for the questions no mechanical check can answer.
 
 ## License
 

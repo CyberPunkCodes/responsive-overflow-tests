@@ -3,6 +3,30 @@
 This project is pre-1.0. Per semver, breaking changes may land in a minor
 release; they are always listed here first.
 
+## Unreleased
+
+### Added
+
+- **`init` now prints the one-line prompt** that tells an AI coding agent to
+  write the tier guidance into the project's own `AGENTS.md`/`CLAUDE.md`.
+  `ADVANCED.md` ships inside the package, so the agent reads it locally with no
+  network access. Nothing new is written to disk — it is printed, not scaffolded.
+- **README step 7, "Tell your AI agent about it"** — the same prompt, at the
+  point in the setup sequence where it is actionable. Agents do not discover
+  the guidance on their own; someone has to point at it once.
+- **Git hook guidance** in the CI section: `light` on **pre-push**, with husky,
+  lefthook, and plain `.git/hooks` examples, plus why pre-commit is the wrong
+  place and why raising the tier in a hook backfires.
+- **Cross-references to a screenshot pass** in the README, the agent guidance
+  block, and `init` output. This check proves a layout did not physically
+  break; it cannot judge overlap, wrapping, or spacing, and an agent that only
+  runs this will report a page as verified without having looked at it.
+
+### Changed
+
+- The CI section now states the full escalation (`light` while editing,
+  `medium` before merging, `full` in CI) as a table rather than one sentence.
+
 ## 0.3.0
 
 A substantial rework around a **single config file**. If you are on 0.1.x or

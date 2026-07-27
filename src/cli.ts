@@ -13,6 +13,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const DOCS = "https://github.com/CyberPunkCodes/responsive-overflow-tests/blob/main/ADVANCED.md";
+/** Companion screenshot pass — the visual-judgment layer this check can't cover. */
+const PLUGIN_URL =
+  "https://github.com/CyberPunkCodes/claude-dev-plugins/tree/main/plugins/frontend-screenshot-verification";
 const ARTIFACT_DIR = ".playwright/";
 
 type Lang = { ext: "ts" | "js" | "mjs"; importSuffix: string };
@@ -257,8 +260,20 @@ function init(): void {
       "slowest. Copy-paste workflow:",
       `  ${DOCS}#continuous-integration`,
       "",
-      "Working with an AI coding agent? Which tier to run when:",
-      `  ${DOCS}#ai-agents--automated-workflows`,
+      "Working with an AI coding agent? Paste this to it once, and it will write",
+      "the tier guidance into your project's own agent instructions:",
+      "",
+      "    Read node_modules/responsive-overflow-tests/ADVANCED.md, find the",
+      '    "AI agents & automated workflows" section, and add its guidance block',
+      "    to this project's AGENTS.md (or CLAUDE.md if that's what we use).",
+      "",
+      "That file ships inside the package, so this needs no network access.",
+      `Background: ${DOCS}#ai-agents--automated-workflows`,
+      "",
+      "This checks that the layout did not physically break. It cannot tell you",
+      "whether it still looks right — overlap, spacing, wrapping. For that, pair",
+      "it with a screenshot pass:",
+      `  ${PLUGIN_URL}`,
       "",
     ].join("\n")
   );

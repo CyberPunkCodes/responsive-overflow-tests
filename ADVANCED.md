@@ -190,6 +190,60 @@ everywhere; `ignore` is surgical.
 Run `light` locally, `full` in CI. The full tier is the widest viewport net
 and the slowest — it belongs in a pipeline, not in your edit loop.
 
+The escalation that works in practice:
+
+| Where | Tier | Why |
+|---|---|---|
+| While editing | `light` | Seconds. Cheap enough to run constantly. |
+| Before merging a branch | `medium` | Adds the breakpoint-boundary widths, where overflow actually happens. |
+| CI | `full` | The widest net, on a machine whose time you aren't waiting on. |
+
+### Git hooks — catching it before it leaves your machine
+
+Put `light` on **pre-push**, not pre-commit. A commit should stay instant, and
+it's normal to commit work-in-progress that doesn't pass yet; a push is the
+point where it starts affecting other people. This is also the last gate before
+CI, so it saves you a red pipeline for something a four-second check would have
+caught.
+
+With [husky](https://typicode.github.io/husky/):
+
+```bash
+npm install --save-dev husky
+npx husky init
+echo 'npx playwright test' > .husky/pre-push
+```
+
+With [lefthook](https://lefthook.dev/), in `lefthook.yml`:
+
+```yaml
+pre-push:
+  commands:
+    responsive:
+      run: npx playwright test
+```
+
+Or with no dependency at all — `.git/hooks/pre-push`, made executable with
+`chmod +x` (note this one is local to your clone and isn't shared with the
+team):
+
+```bash
+#!/bin/sh
+npx playwright test || exit 1
+```
+
+Bypass a hook when you genuinely need to with `git push --no-verify`.
+
+Two things to get right:
+
+- **Scope the hook to this check** if your suite has slower layers. Use the
+  script from step 6 of the README (`npm run test:responsive`) or filter with
+  `npx playwright test -g "horizontal overflow"` — every generated test title
+  contains that phrase.
+- **Don't raise the tier in the hook.** `medium` and `full` are slow enough
+  that people start reaching for `--no-verify` out of habit, which costs you
+  the hook entirely.
+
 ### GitHub Actions
 
 ```yaml
@@ -280,12 +334,26 @@ When a check fails:
 
 When adding a new page, add its route to `responsive-overflow-tests.config.ts`
 — `light` if it is a primary page, otherwise `medium` or `full`.
+
+This check only proves the layout did not physically overflow. It cannot see
+overlap, bad wrapping, or unreadable spacing — those fit inside the viewport
+and pass. After a visual change, also run a screenshot pass and look at the
+output. A green run here is not evidence the page looks right.
 ```
 
 The reasoning behind the tiers: `light` is fast enough to run constantly,
 `medium` costs more but catches the breakpoint-boundary breaks that matter
 before a merge, and `full` is a pre-release sweep. An agent that runs `full`
 after every edit is burning time for coverage nobody asked for.
+
+That last paragraph matters more for agents than for people. An agent that has
+just been told "no horizontal overflow at 15 viewports" will happily report the
+layout as verified, because the check it ran came back clean. It didn't look at
+anything. If you use Claude Code,
+[`frontend-screenshot-verification`](https://github.com/CyberPunkCodes/claude-dev-plugins/tree/main/plugins/frontend-screenshot-verification)
+is a plugin that renders routes across real device viewports for exactly that
+second pass — but any screenshot tool works, as long as something exercises
+judgment. See [Pair it with a screenshot pass](README.md#pair-it-with-a-screenshot-pass).
 
 ---
 
