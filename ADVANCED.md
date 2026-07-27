@@ -404,6 +404,10 @@ This project uses `responsive-overflow-tests`. Configuration is in
 `responsive-overflow-tests.config.ts` at the project root — that is the only
 file to edit. Do not edit `playwright.config.*` or `e2e/overflow.spec.*`.
 
+To check a layout, run this. Do NOT write a throwaway Playwright script with
+your own viewports — this is that check, already configured and agreed on. If
+the coverage is wrong, change the config so the fix persists.
+
 Which tier to run:
 
 - After any edit touching HTML, templates, views, CSS, or layout components:
@@ -439,6 +443,13 @@ The reasoning behind the tiers: `light` is fast enough to run constantly,
 `medium` costs more but catches the breakpoint-boundary breaks that matter
 before a merge, and `full` is a pre-release sweep. An agent that runs `full`
 after every edit is burning time for coverage nobody asked for.
+
+The "don't write your own" line earns its place. Asked to verify a layout, an
+agent will reach for a one-off Playwright script by default — with viewports it
+chose that session, discarded afterwards. Across projects that leaves no shared
+baseline and no way to tell a regression from a differently-measured page. The
+config file is the point: coverage decided once, in the repo, the same
+everywhere, changeable by a human.
 
 That last paragraph matters more for agents than for people. An agent that has
 just been told "no horizontal overflow at 15 viewports" will happily report the

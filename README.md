@@ -44,10 +44,30 @@ baselines, no diffs to approve — it passes, or it names the element to fix.
 
 An agent editing layout code can't see the result. It has no way to know a
 change pushed something past the viewport, so it reports the work as done and
-the break ships. This gives it a mechanical gate it can run itself and act on: a
-pass/fail with the offending element named, no screenshots to interpret and no
-human in the loop. [Step 7](#7-tell-your-ai-agent-about-it) sets that up in one
-paste.
+the break ships.
+
+The less obvious problem is what it does when you ask it to check. It writes a
+Playwright script — picking its own viewports, its own tolerance, its own guess
+at which pages matter — runs it, and throws it away. Next session it writes a
+different one. Across a handful of projects you end up with a handful of
+incompatible ad-hoc harnesses and no baseline anywhere: nothing is a regression,
+because nothing was measured the same way twice. A page checked at 375px last
+week is checked at 390px today, and the width that actually broke gets tested by
+nobody.
+
+The agent is going to build this anyway. This is the version it would have
+written, settled in advance — the same viewport coverage in every project from
+the first commit, in a config a human can read and change.
+
+Cost is the other half, and it's why the tiers exist. `light` is six viewports
+and reports a line or two of text, so an agent can run it after small edits
+without it being a decision — no screenshots to feed back through a model, no
+context burned re-deriving the harness. `medium` widens the net for a real
+layout change, `full` belongs in CI. One tool, scaled by the size of the edit
+rather than swapped out for a bigger one.
+
+[Step 7](#7-tell-your-ai-agent-about-it) wires this into your agent's own
+instructions in one paste.
 
 ## Framework and language agnostic
 

@@ -14,9 +14,17 @@ Everything below came out of rolling the package onto real projects.
   what horizontal overflow is before any API appears, then a **Why** section:
   the bug renders fine on a desktop monitor so it survives review, mobile is
   what Google indexes, and WCAG 2.1 criterion 1.4.10 (Reflow, AA) is written
-  against a 320px width. Includes a short **For AI coding agents** subsection —
-  an agent editing layout code can't see the result, and this is a gate it can
-  run and act on by itself.
+  against a 320px width.
+- **A "For AI coding agents" section** in the README. Beyond the obvious (an
+  agent editing layout code can't see the result), it names the drift problem:
+  asked to verify a layout, an agent writes a one-off Playwright script with
+  viewports it picked that session and discards it, so across projects there is
+  no shared baseline and no way to tell a regression from a differently-measured
+  page. Also why the tiers are the answer to cost — `light` returns two lines of
+  text, so an agent can run it on small edits without feeding screenshots back
+  through a model or re-deriving a harness.
+- **"Do not write a throwaway Playwright script"** in the copy-paste agent
+  guidance block, with the reasoning below it.
 - **"Routes that do something"** (ADVANCED) — checks are real page loads,
   repeated once per viewport, so a checkout or mail-triggering route does its
   thing six to eighteen times per run. Covers pointing at a safe environment,
