@@ -48,11 +48,11 @@ export interface LoginConfig {
   url: string;
   username?: string;
   password?: string;
-  /** Defaults to `input[type="email"], input[name="email"], input[name="username"]`. */
+  /** Defaults to the common email/username inputs — see ADVANCED.md#authentication. */
   usernameSelector?: string;
   /** Defaults to `input[type="password"]`. */
   passwordSelector?: string;
-  /** Defaults to `button[type="submit"]`. */
+  /** Defaults to `button[type="submit"], input[type="submit"]`. */
   submitSelector?: string;
   /** Path/URL expected after a successful login. Used to confirm it worked. */
   successUrl?: string;

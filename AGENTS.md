@@ -54,18 +54,40 @@ src/
   cli.ts            `responsive-overflow-tests init`
   types.ts          ResponsiveConfig and friends
 tests/              Vitest unit tests
-README.md           Basic path: install → configure → run
-ADVANCED.md         Auth, custom viewports, ignore, CI, agents, troubleshooting,
-                    config reference, existing-config merge
+README.md           Why it matters, then install → configure → run
+ADVANCED.md         Auth, side effects, custom viewports, ignore, CI + hooks,
+                    agents, troubleshooting, config reference, config merge
 CHANGELOG.md        Every user-visible change; migration notes for breaks
 ```
 
-Docs rule: the README covers only the happy path to a first green run.
-Anything beyond that belongs in ADVANCED.md, linked from the README's
-"Going further" list. Don't let ADVANCED-level detail creep into the README.
-
 `dist/` is built output and is gitignored; `files: ["dist"]` in package.json
-controls what actually ships.
+controls what actually ships. **Any doc referenced by a local path — `init`
+tells agents to read `node_modules/responsive-overflow-tests/ADVANCED.md` — must
+be listed in `files` or that instruction breaks on install.**
+
+## Docs rules
+
+The audience is two-headed: a developer skimming npm, and an AI agent reading
+the file as instructions. Both are first-class.
+
+1. **The README opens with plain English and the problem, not the mechanism.**
+   Someone who has never heard of horizontal overflow should understand what
+   breaks and why they care before any API appears. That opening is also what
+   npm and search engines index — do not "tighten" it into a feature list.
+2. **README = happy path only**, install → configure → first green run.
+   Everything else lives in ADVANCED.md and is linked from "Going further".
+   Don't let ADVANCED-level detail creep into the README; a one-line callout
+   plus a link is the pattern.
+3. **Every real-world snag gets written down.** If a consumer project hits
+   something the docs didn't warn about — a dev server that daemonizes, a
+   Playwright option that behaves differently than it reads — that is a docs
+   bug. Add it to Troubleshooting with the symptom as the heading, since the
+   symptom is what someone searches for.
+4. **Never use a real project as an example.** Examples are invented and
+   generic (`/about`, `example.com`, `#map-embed`). See Anonymity below.
+5. **State caveats plainly rather than omitting them** — `ignore` attributing
+   rather than suppressing, `light` not covering 320px, a green run not meaning
+   the page looks right. The docs' credibility is the product here.
 
 ## Working on it
 

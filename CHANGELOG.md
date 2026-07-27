@@ -3,6 +3,55 @@
 This project is pre-1.0. Per semver, breaking changes may land in a minor
 release; they are always listed here first.
 
+## Unreleased
+
+Documentation only — no API change, no behaviour change in the check itself.
+Everything below came out of rolling the package onto real projects.
+
+### Added
+
+- **A plain-English opening to the README.** States what the package does and
+  what horizontal overflow is before any API appears, then a **Why** section:
+  the bug renders fine on a desktop monitor so it survives review, mobile is
+  what Google indexes, and WCAG 2.1 criterion 1.4.10 (Reflow, AA) is written
+  against a 320px width. Includes a short **For AI coding agents** subsection —
+  an agent editing layout code can't see the result, and this is a gate it can
+  run and act on by itself.
+- **"Routes that do something"** (ADVANCED) — checks are real page loads,
+  repeated once per viewport, so a checkout or mail-triggering route does its
+  thing six to eighteen times per run. Covers pointing at a safe environment,
+  aborting mutating endpoints with `page.route()`, and asserting in-test that
+  you aren't on production.
+- **A `workers` warning** in the existing-config merge section. `workers` is
+  top-level in Playwright and `fullyParallel: true` on a project does not
+  override it, so merging into a config with `workers: 1` silently serializes
+  the overflow run. Fix is `--workers=N` on that project's script.
+- **Port guidance** in the README and troubleshooting. Outside CI,
+  `reuseExistingServer` attaches to whatever already holds the port — if that's
+  your framework's default, the suite can quietly measure your own dev server on
+  another branch and pass.
+- **Troubleshooting: `Process from config.webServer exited early`** — dev
+  servers that daemonize return immediately and look like a crashed server.
+  Serve a build, stop the background instance, or start it yourself.
+- **A note that `RESPONSIVE_TIER` should be explicit in CI**, since a job that
+  silently runs `light` looks identical in the log to one running `full`.
+- Two lines in the copy-paste agent guidance block: don't add side-effecting
+  routes without asking, and never point the suite at production.
+- Docs rules in this repo's `AGENTS.md`, including that any file `init` tells an
+  agent to read from `node_modules/` must be listed in `files`.
+
+### Changed
+
+- README "Getting started" now flags the existing-Playwright-config path up
+  front rather than only in the step-3 table.
+- Expanded `keywords` in `package.json` for npm search.
+
+### Fixed
+
+- The `submitSelector` and `usernameSelector` JSDoc in `types.ts` understated
+  the actual defaults. Corrected against `auth.ts`; the ADVANCED table was
+  already right.
+
 ## 0.3.1
 
 Documentation and `init` output only — no API change, no behaviour change in

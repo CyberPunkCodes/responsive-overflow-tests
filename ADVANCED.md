@@ -117,6 +117,84 @@ auth: {
 
 ---
 
+## Routes that do something
+
+Every check is a real page load in a real browser. That is the whole point — it
+is why the measurement is trustworthy — but it means a route with side effects
+will have them, once per viewport, on every run.
+
+A `light` run visits six viewports. Adding your checkout page to it is six page
+loads, which may be six payment intents, six analytics sessions, or six rows in
+a table. In CI, against an environment holding live credentials, that stops
+being a test-data problem.
+
+Most sites never hit this. If yours has a checkout, a booking flow, a
+transactional-mail trigger, or anything that writes on load, three habits keep it
+safe.
+
+### Point it at an environment that can't do damage
+
+The cleanest fix by far. Run against local or staging, with test-mode keys and a
+throwaway database. If a route is only reachable in an environment with real
+credentials, don't list it.
+
+### Block the endpoints that mutate
+
+Playwright can abort requests before they leave the browser. Do it in your spec,
+around the check:
+
+```ts
+import { test } from "@playwright/test";
+import { overflowCases, runOverflowCheck } from "responsive-overflow-tests";
+import config from "../responsive-overflow-tests.config";
+
+// Anything that writes. Aborted before it leaves the browser.
+const MUTATING_ENDPOINTS = ["**/api/checkout", "**/api/subscribe", "**/webhooks/**"];
+
+for (const testCase of overflowCases(config)) {
+  test(testCase.title, async ({ page }) => {
+    for (const endpoint of MUTATING_ENDPOINTS) {
+      await page.route(endpoint, (route) => route.abort());
+    }
+    await runOverflowCheck(page, testCase, config);
+  });
+}
+```
+
+The layout still renders and still gets measured; the write never happens. If a
+blocked call is what populates the part of the page you care about, feed it a
+stub with `route.fulfill()` instead of aborting.
+
+### Assert you are where you think you are
+
+The failure mode that actually costs money is a config or CI variable quietly
+resolving to production. Assert against it in the test itself, so a
+misconfiguration fails loudly instead of running:
+
+```ts
+import { test, expect } from "@playwright/test";
+import config from "../responsive-overflow-tests.config";
+
+test.beforeAll(() => {
+  const target = config.baseURL ?? `localhost:${config.port}`;
+  expect(
+    /localhost|127\.0\.0\.1|staging/.test(target),
+    `Refusing to run: ${target} does not look like a test environment.`
+  ).toBe(true);
+});
+```
+
+If your app exposes its publishable/public keys to the page — payment providers
+commonly do — read one and assert it isn't the live one. It is a cheap check and
+it catches the case where every other signal looked right.
+
+> Keep these guards in your own spec, not in the config. This package
+> deliberately has no "don't really do that" mode: it can't know which of your
+> requests are safe, and a knob that *looked* like it protected you would be
+> worse than none.
+
+---
+
 ## Custom viewports
 
 ### Add to the built-in tiers
@@ -283,6 +361,16 @@ For a non-JS backend, add whatever boots your app before the test step, or
 point `baseURL` at an already-deployed staging environment and drop
 `startCommand`.
 
+Two things worth checking before you turn this on in a pipeline:
+
+- **What the job's secrets actually are.** CI is where a "staging" variable
+  quietly resolves to production, and `full` multiplies every page load by
+  eighteen viewports. If any listed route has side effects, read
+  [Routes that do something](#routes-that-do-something) first.
+- **`RESPONSIVE_TIER` is set in the job**, not left to the config default. The
+  default is `light`; a CI run that silently checks six viewports instead of
+  eighteen looks identical in the log.
+
 ### Testing a deployed environment
 
 ```ts
@@ -335,6 +423,12 @@ When a check fails:
 When adding a new page, add its route to `responsive-overflow-tests.config.ts`
 — `light` if it is a primary page, otherwise `medium` or `full`.
 
+Each check is a real page load, repeated once per viewport. Do NOT add a route
+that charges a card, sends mail, or writes data without saying so first — six
+loads of a checkout page is six of whatever that page does.
+
+Never point the suite at production. It runs against local or staging.
+
 This check only proves the layout did not physically overflow. It cannot see
 overlap, bad wrapping, or unreadable spacing — those fit inside the viewport
 and pass. After a visual change, also run a screenshot pass and look at the
@@ -365,6 +459,46 @@ Nothing is serving your site. Either set `startCommand` so Playwright boots it,
 or start the server yourself and make sure `port`/`baseURL` matches. If you
 merged into an existing Playwright config, the `webServer` block there is what
 matters.
+
+### `Process from config.webServer exited early`
+
+Your `startCommand` returned instead of staying in the foreground. Playwright
+needs the process it spawns to *be* the server, so it can wait for the port and
+kill it afterwards.
+
+The usual cause is a dev server that daemonizes — it forks a background process
+and exits immediately, so from Playwright's point of view the server died on
+startup. Some CLIs do this by default; some do it only on a second invocation,
+where a background instance from an earlier run is still holding the project and
+the new one hands off to it and exits.
+
+Three fixes, best first:
+
+1. **Serve a build instead of the dev server.** `npm run build && npm run
+   preview` (or your framework's equivalent) runs in the foreground, boots
+   faster, and — more importantly — tests the output you actually ship. Dev
+   servers inject overlays and unminified assets that a production build won't
+   have.
+2. **Stop the stray background instance first**, if your CLI has a command for
+   it, then let Playwright start a fresh one.
+3. **Start the server yourself** in another terminal and drop `startCommand`
+   entirely. Playwright will attach to it.
+
+### The run is green but I know that page is broken
+
+You almost certainly measured a different server than you meant to. Outside CI,
+`reuseExistingServer` defaults to `true`: if something is already listening on
+your port, Playwright attaches to it and never runs `startCommand`. When that
+port is your framework's default, "something" is usually your own `npm run dev`
+— on another branch, or serving a build from an hour ago.
+
+Serve the tests on a port you use for nothing else, referenced in both `port`
+and `startCommand`. Then the two can't collide, and a failure to boot is loud
+instead of silent.
+
+To confirm what you're hitting, load the route yourself at the port in your
+config, or set `reuseExistingServer: false` for a run and see whether the result
+changes.
 
 ### `browserType.launch: Executable doesn't exist`
 
@@ -426,12 +560,17 @@ the login while the rest wait, but if you're seeing this anyway, pre-generate a
 session and point at it with `auth.storageState`, or run the suite with
 `--workers=1`.
 
-### Runs are slow
+### Runs are slow, or tests run one at a time
 
-Check `waitUntil`. If you set it to `networkidle`, every route waits for
-network silence, which never arrives on sites with polling or analytics. The
-default `"load"` is almost always what you want. Also confirm you're not
-running `full` by habit — that's a CI tier.
+If you merged into an existing Playwright config, check its top-level `workers`
+first — that's the usual answer, and a per-project `fullyParallel: true` does
+not override it. See the note in
+[Using an existing Playwright config](#using-an-existing-playwright-config).
+
+Otherwise check `waitUntil`. If you set it to `networkidle`, every route waits
+for network silence, which never arrives on sites with polling or analytics. The
+default `"load"` is almost always what you want. Also confirm you're not running
+`full` by habit — that's a CI tier.
 
 ### `.playwright/` showed up in my commit
 
@@ -539,6 +678,35 @@ for (const testCase of overflowCases(config)) {
 Nothing else is needed — routes resolve against your existing `use.baseURL`.
 If you filter runs with `-g`, match on `horizontal overflow`, which every
 generated test title contains.
+
+> **Check your `workers` before you blame the package.** This is the one thing
+> that reliably surprises people here. Overflow checks are independent and
+> should run in parallel — dozens of them finish in seconds. But **`workers` and
+> `fullyParallel` are not the same setting, and only `fullyParallel` can be set
+> per project.** A config with a top-level `workers: 1` — completely normal if
+> your existing suite has serial database or checkout tests — serializes
+> *everything*, including this, and no per-project option can raise it back:
+>
+> ```ts
+> export default defineConfig({
+>   workers: 1,                    // top-level: applies to every project
+>   projects: [
+>     { name: "e2e", testDir: "./tests/e2e" },
+>     { name: "overflow", testDir: "./tests/overflow", fullyParallel: true },
+>     //                                              ↑ does NOT restore parallelism
+>   ],
+> });
+> ```
+>
+> Give the overflow project its own script and set the worker count there:
+>
+> ```json
+> { "scripts": { "test:responsive": "playwright test --project=overflow --workers=4" } }
+> ```
+>
+> Your serial suite keeps `workers: 1` from the config; this one gets its
+> parallelism back from the command line. Symptom to watch for: a run that works
+> fine but takes minutes instead of seconds.
 
 **Wrap your export** — if the existing config has no settings you need to keep:
 
