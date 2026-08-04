@@ -94,6 +94,12 @@ When it fails it walks the DOM for the elements whose bounding boxes actually
 cross the right edge and names the worst offenders, so you aren't bisecting the
 page by hand.
 
+It also catches the case that measurement alone misses: when an ancestor has
+`overflow-x: hidden`, content wider than the page is **clipped instead of
+scrolled**, so `scrollWidth` never moves and the page passes while text is cut
+off. Those elements are compared against the box of whatever is clipping them —
+see [Clipped overflow](ADVANCED.md#clipped-overflow).
+
 ## Requirements
 
 - **Node 18+** — the tests run on Node even if your app doesn't.

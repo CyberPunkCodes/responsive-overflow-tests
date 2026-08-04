@@ -1,11 +1,90 @@
 import { BREAKPOINT_TIERS, DEVICE_TIERS, TIER_ORDER, cumulative } from "./viewports.js";
+import { DEFAULT_CLIPPING_SELECTOR } from "./overflow.js";
 import type { ResponsiveConfig, RouteInput, Tier, Viewport } from "./types.js";
 
 /** Everything this package writes goes under one directory. */
 export const DEFAULT_OUTPUT_DIR = ".playwright";
 export const DEFAULT_TEST_DIR = "e2e";
 
+/**
+ * Environment variables that tell a process an AI agent launched it.
+ *
+ * Several dev servers change behaviour when they detect one — Astro 7.1+ forks
+ * itself into a background daemon, so the wrapper exits immediately and
+ * Playwright reports `Process from config.webServer exited early` even though
+ * the server came up fine. Stripping these from the server's environment makes
+ * a run behave identically whether a human or an agent started it, which is the
+ * only way the check means the same thing in both cases.
+ *
+ * Framework-agnostic on purpose: this removes the *signal*, so it fixes any
+ * tool that keys off it, not one specific framework.
+ */
+export const AGENT_ENV_VARS = [
+  "CLAUDECODE",
+  "CLAUDE_CODE",
+  "CURSOR_AGENT",
+  "CURSOR_TRACE_ID",
+  "AIDER_CHAT",
+  "REPL_ID",
+  "CODEX_SANDBOX",
+  "GEMINI_CLI",
+  "OPENCODE",
+  "AMP_CLI",
+  "WINDSURF_AGENT",
+] as const;
+
 const isTier = (value: string): value is Tier => (TIER_ORDER as string[]).includes(value);
+
+/** Resolved clipping-detection settings. */
+export interface ResolvedClipping {
+  enabled: boolean;
+  selector: string;
+  ignore: string[];
+}
+
+/**
+ * Clipping detection settings, merged with the top-level `ignore` list so a
+ * selector a consumer already excused from the primary check is not re-reported
+ * by this one.
+ */
+export function resolveClipping(config: ResponsiveConfig): ResolvedClipping {
+  const raw = config.clipping ?? true;
+  const base = { selector: DEFAULT_CLIPPING_SELECTOR, ignore: config.ignore ?? [] };
+
+  if (raw === false) return { ...base, enabled: false };
+  if (raw === true) return { ...base, enabled: true };
+
+  return {
+    enabled: raw.enabled ?? true,
+    selector: raw.selector ?? DEFAULT_CLIPPING_SELECTOR,
+    ignore: [...(config.ignore ?? []), ...(raw.ignore ?? [])],
+  };
+}
+
+/**
+ * Environment *overrides* for the `startCommand` process — agent-detection
+ * variables neutralised, then the consumer's `webServerEnv` on top.
+ *
+ * Returns overrides only, not a full environment: Playwright **merges**
+ * `webServer.env` over `process.env`, so a variable cannot be deleted here,
+ * only overwritten. Empty string is the portable stand-in — detection libraries
+ * treat an empty value as absent (verified against `am-i-vibing`, which returns
+ * `null` for `CLAUDECODE=`), and unlike `env -u` it works on Windows.
+ *
+ * Only variables that are actually set get an override, so a run in a plain
+ * shell passes nothing extra to the server.
+ */
+export function resolveWebServerEnv(config: ResponsiveConfig): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of AGENT_ENV_VARS) {
+    if (process.env[key] !== undefined) env[key] = "";
+  }
+  // `undefined` means "unset it" — emulated as empty string, per above.
+  for (const [key, value] of Object.entries(config.webServerEnv ?? {})) {
+    env[key] = value ?? "";
+  }
+  return env;
+}
 
 /**
  * Identity function with validation and editor autocomplete — the entry point

@@ -263,6 +263,63 @@ everywhere; `ignore` is surgical.
 
 ---
 
+## Clipped overflow
+
+The primary check compares `document.documentElement.scrollWidth` against
+`clientWidth`. That is exact, deterministic, and the right thing to measure —
+but it can only see overflow that produces a **scrollbar**.
+
+It cannot see overflow that gets **clipped**. If any ancestor carries
+`overflow-x: hidden` — a normal thing to put on a hero or banner wrapper — a
+child wider than that ancestor is cut off rather than scrolled. `scrollWidth`
+stays exactly equal to `clientWidth`, the check passes, and the page is
+visibly broken:
+
+```html
+<section style="overflow:hidden; display:flex; justify-content:center">
+  <h1 style="white-space:nowrap; font-size:60px">
+    A headline far wider than the viewport
+  </h1>
+</section>
+```
+
+At 640px: `scrollWidth === clientWidth === 640`, and the headline is truncated
+on both sides.
+
+Since 0.4.0 each candidate element is also compared against the box of the
+nearest ancestor that clips it. Same class of measurement as the primary check,
+so it stays deterministic.
+
+**Only `hidden` and `clip` count.** `auto` and `scroll` are excluded on purpose:
+that content is still reachable by scrolling, so a carousel or a wide table in a
+scroll container is not a defect.
+
+### What it checks, and how to narrow it
+
+By default it looks at text-bearing block elements — `h1`–`h6`, `p`, `li`,
+`blockquote`, `figcaption`, `table`, `pre`, `dt`, `dd` — the places where being
+clipped actually destroys information someone needed to read.
+
+`div`, `span`, `a` and `img` are deliberately excluded. Full-bleed decorative
+elements inside an `overflow-hidden` wrapper are a normal pattern, and including
+them turns the check into noise.
+
+```ts
+clipping: false,                              // off entirely
+clipping: { selector: "h1, h2" },             // narrower than the default
+clipping: { ignore: [".marquee"] },           // excuse specific elements
+```
+
+`clipping.ignore` is merged with the top-level `ignore`, so anything already
+excused from the primary check is excused here too.
+
+> **Upgrading from 0.3.x:** a project that was green can go red, because this
+> failure was always present and simply could not be reported. Look at the page
+> at the named viewport before reaching for `clipping: false` — the check names
+> the element and the ancestor doing the clipping.
+
+---
+
 ## Continuous integration
 
 Run `light` locally, `full` in CI. The full tier is the widest viewport net
@@ -495,9 +552,49 @@ Three fixes, best first:
 3. **Start the server yourself** in another terminal and drop `startCommand`
    entirely. Playwright will attach to it.
 
+#### …but only when an AI agent runs it
+
+A dev server can daemonize *conditionally*, based on whether it thinks an agent
+launched it. It then works by hand and fails under an agent, with the server
+plainly reachable by `curl` the whole time — which reads like a broken test
+suite rather than a server that moved.
+
+The detection is environment-variable based (libraries like `am-i-vibing` look
+for `CLAUDECODE`, `CURSOR_AGENT`, and similar). Since 0.4.0 those variables are
+blanked for the `startCommand` process automatically, so a run behaves the same
+either way. The list is exported as `AGENT_ENV_VARS`.
+
+They are set to `""` rather than removed: Playwright *merges* `webServer.env`
+over `process.env`, so a key can be overwritten but never deleted. An empty
+value reads as absent to the detection libraries, and it works on Windows, where
+`env -u` does not exist.
+
+If you *want* the server to see one — some tools enable useful diagnostics under
+an agent — put it back explicitly:
+
+```ts
+webServerEnv: { CLAUDECODE: "1" },
+```
+
+`webServerEnv` layers over `process.env`; a key set to `undefined` is blanked.
+
 ### The run is green but I know that page is broken
 
-You almost certainly measured a different server than you meant to. Outside CI,
+Two causes, and it is worth ruling out the second one first because it is
+silent.
+
+**The content is clipped, not scrolled.** If any ancestor carries
+`overflow-x: hidden`, a child wider than that ancestor is cut off instead of
+producing a scrollbar. `documentElement.scrollWidth` never exceeds
+`clientWidth`, so the primary check has nothing to compare and passes. The text
+is genuinely gone off the side of the page and no amount of measuring the
+document will say so.
+
+Since 0.4.0 this is checked separately — see
+[Clipped overflow](#clipped-overflow) below. If you are on an older version,
+upgrade; if you have set `clipping: false`, that is why.
+
+**You measured a different server than you meant to.** Outside CI,
 `reuseExistingServer` defaults to `true`: if something is already listening on
 your port, Playwright attaches to it and never runs `startCommand`. When that
 port is your framework's default, "something" is usually your own `npm run dev`
@@ -616,6 +713,7 @@ These are consumed by `toPlaywrightConfig()` only.
 | `baseURL` | `string` | — | Full URL. Use instead of `port`/`host` for a deployed site. Also used as the login context's base when `auth.login` is set. |
 | `startCommand` | `string` | — | Boots the site. Omit if it's already running. |
 | `reuseExistingServer` | `boolean` | `true` outside CI | Attach to a running server instead of booting one. |
+| `webServerEnv` | `Record<string, string \| undefined>` | — | Env overrides for `startCommand`, layered over `process.env`. `undefined` blanks a key (Playwright merges, so keys cannot be deleted). Agent-detection vars (`AGENT_ENV_VARS`) are blanked by default — see [`webServer exited early`](#process-from-configwebserver-exited-early). |
 
 ### What to check
 
@@ -642,6 +740,7 @@ These are consumed by `toPlaywrightConfig()` only.
 | `waitUntil` | `"load"` \| `"domcontentloaded"` \| `"networkidle"` \| `"commit"` | `"load"` | always | `networkidle` can hang on sites with polling or analytics. |
 | `expectStatus` | `number` \| `false` | `200` | always | `false` skips the status check. |
 | `ignore` | `string[]` | `[]` | always | See [Ignoring known offenders](#ignoring-known-offenders). |
+| `clipping` | `boolean` \| `{ enabled?, selector?, ignore? }` | `true` | always | Catches overflow an ancestor clips instead of scrolling — invisible to the `scrollWidth` check. See [Clipped overflow](#clipped-overflow). |
 | `timeout` | `number` | `30000` | `toPlaywrightConfig` only | Per check, in ms. |
 | `outputDir` | `string` | `".playwright"` | `toPlaywrightConfig` only | All artifacts land here. Also where the login session is cached. |
 | `testDir` | `string` | `"e2e"` | `toPlaywrightConfig` only | Where Playwright discovers the spec. |

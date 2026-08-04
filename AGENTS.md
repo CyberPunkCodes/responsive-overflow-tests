@@ -133,6 +133,32 @@ and `tests/config.test.ts` in the same change.
 - npm permanently retires published version numbers — never reuse one.
 - Update the version only when asked, and say which bump you applied.
 
+### Every release gets a tag, and the tag gets pushed
+
+Annotated tag named `vX.Y.Z` on the commit that bumps `package.json`:
+
+```
+git tag -a v0.4.0 -m "v0.4.0" && git push github main --tags
+```
+
+**Push the branch and the tag together.** This is not bookkeeping — it is the
+only thing that makes an unpushed release visible. 0.3.2 was committed, then
+published to npm, and never pushed; GitHub sat a version behind for over a
+week and nothing surfaced it, because with no tags there was nothing to be
+missing. Tags were added retroactively for every published version except
+0.1.1, whose bump never landed as its own commit.
+
+Before calling a release done, confirm all three agree:
+
+```
+node -p "require('./package.json').version"   # local
+npm view responsive-overflow-tests version    # npm
+git ls-remote --tags github | tail -3         # GitHub
+```
+
+If they disagree, say so plainly rather than assuming a stale remote-tracking
+ref — `git fetch github --tags` first, then re-check.
+
 ## Anonymity
 
 This package is published under the alias **CyberPunk**. Author strings are

@@ -1,15 +1,21 @@
 import { expect, type Page } from "@playwright/test";
-import { overflowReport, type Offender } from "./overflow.js";
+import { clippedReport, overflowReport, type ClippedOffender, type Offender } from "./overflow.js";
 import {
   resolveAuthedRoutes,
+  resolveClipping,
   resolveRoutes,
   resolveTier,
   resolveViewports,
 } from "./config.js";
 import type { OverflowCase, ResponsiveConfig, Viewport } from "./types.js";
 
-export { overflowReport } from "./overflow.js";
-export type { OverflowReport, Offender } from "./overflow.js";
+export { overflowReport, clippedReport, DEFAULT_CLIPPING_SELECTOR } from "./overflow.js";
+export type {
+  OverflowReport,
+  Offender,
+  ClippedReport,
+  ClippedOffender,
+} from "./overflow.js";
 export { BREAKPOINT_TIERS, DEVICE_TIERS, TIER_ORDER, cumulative } from "./viewports.js";
 export {
   defineConfig,
@@ -20,9 +26,13 @@ export {
   resolveViewports,
   resolveBaseURL,
   resolveOutputDir,
+  resolveClipping,
+  resolveWebServerEnv,
+  AGENT_ENV_VARS,
   DEFAULT_OUTPUT_DIR,
   DEFAULT_TEST_DIR,
 } from "./config.js";
+export type { ResolvedClipping } from "./config.js";
 export { toPlaywrightConfig } from "./playwright.js";
 export { ensureAuthSession, createAuthedPage } from "./auth.js";
 export type {
@@ -34,6 +44,7 @@ export type {
   RouteInput,
   RouteGroups,
   ViewportGroups,
+  ClippingConfig,
   AuthConfig,
   LoginConfig,
 } from "./types.js";
@@ -41,6 +52,12 @@ export type {
 function formatOffender(o: Offender): string {
   const classSuffix = o.cls ? `.${o.cls.split(/\s+/).filter(Boolean).join(".")}` : "";
   return `  ${o.tag}${o.id}${classSuffix} — right edge: ${o.right}px, width: ${o.width}px`;
+}
+
+function formatClipped(o: ClippedOffender): string {
+  const classSuffix = o.cls ? `.${o.cls.split(/\s+/).filter(Boolean).join(".")}` : "";
+  const where = o.side === "both" ? "past both edges" : `past the ${o.side} edge`;
+  return `  ${o.tag}${o.id}${classSuffix} — ${o.overflowPx}px ${where} of ${o.clipper}`;
 }
 
 function buildCases(routes: string[], viewports: Viewport[]): OverflowCase[] {
@@ -100,22 +117,47 @@ export async function runOverflowCheck(
   const report = await overflowReport(page, ignore);
   const overflowPx = report.scrollWidth - report.clientWidth;
 
-  if (overflowPx <= tolerancePx) return;
-
   // Everything past the edge was explicitly ignored — treat as a pass.
-  if (report.offenders.length === 0 && report.ignored > 0) return;
+  const scrollOverflows =
+    overflowPx > tolerancePx && !(report.offenders.length === 0 && report.ignored > 0);
 
-  const offenderLines =
-    report.offenders.length > 0
-      ? report.offenders.map(formatOffender).join("\n")
-      : "  (no individual offenders captured — check for horizontal margins/padding on <body>/<html>)";
+  if (scrollOverflows) {
+    const offenderLines =
+      report.offenders.length > 0
+        ? report.offenders.map(formatOffender).join("\n")
+        : "  (no individual offenders captured — check for horizontal margins/padding on <body>/<html>)";
 
-  const ignoredNote = report.ignored > 0 ? `\n(${report.ignored} more suppressed by \`ignore\`)` : "";
+    const ignoredNote =
+      report.ignored > 0 ? `\n(${report.ignored} more suppressed by \`ignore\`)` : "";
+
+    throw new Error(
+      `Horizontal overflow at ${route} @ ${viewport.name} (${viewport.width}px): ` +
+        `scrollWidth ${report.scrollWidth}px > clientWidth ${report.clientWidth}px ` +
+        `(${overflowPx}px over, tolerance ${tolerancePx}px).\n` +
+        `Worst offending elements:\n${offenderLines}${ignoredNote}`
+    );
+  }
+
+  // Clipped overflow produces no scrollbar, so the check above cannot see it.
+  const clipping = resolveClipping(config);
+  if (!clipping.enabled) return;
+
+  const clipReport = await clippedReport(page, {
+    selector: clipping.selector,
+    ignore: clipping.ignore,
+    tolerancePx,
+  });
+  if (clipReport.clipped.length === 0) return;
+
+  const clippedIgnoredNote =
+    clipReport.ignored > 0 ? `\n(${clipReport.ignored} more suppressed by \`ignore\`)` : "";
 
   throw new Error(
-    `Horizontal overflow at ${route} @ ${viewport.name} (${viewport.width}px): ` +
-      `scrollWidth ${report.scrollWidth}px > clientWidth ${report.clientWidth}px ` +
-      `(${overflowPx}px over, tolerance ${tolerancePx}px).\n` +
-      `Worst offending elements:\n${offenderLines}${ignoredNote}`
+    `Clipped content at ${route} @ ${viewport.name} (${viewport.width}px): ` +
+      `an ancestor with \`overflow-x: hidden\` is cutting these off, so the page ` +
+      `does not scroll and the plain overflow check cannot see it.\n` +
+      `${clipReport.clipped.map(formatClipped).join("\n")}${clippedIgnoredNote}\n` +
+      `If this is deliberate (decorative full-bleed art, a marquee), add it to ` +
+      `\`ignore\` or narrow \`clipping.selector\`.`
   );
 }

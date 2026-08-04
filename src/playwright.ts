@@ -5,6 +5,7 @@ import {
   resolveBaseURL,
   resolveOutputDir,
   resolveTier,
+  resolveWebServerEnv,
 } from "./config.js";
 import type { ResponsiveConfig } from "./types.js";
 
@@ -68,6 +69,10 @@ export function toPlaywrightConfig(config: ResponsiveConfig): PlaywrightTestConf
       url: baseURL,
       reuseExistingServer: config.reuseExistingServer ?? !process.env.CI,
       timeout: 120_000,
+      // Agent-detection variables are stripped here — see resolveWebServerEnv.
+      // Without this, a dev server that daemonizes under an agent exits
+      // immediately and Playwright reports it as a startup crash.
+      env: resolveWebServerEnv(config),
     };
   }
 
