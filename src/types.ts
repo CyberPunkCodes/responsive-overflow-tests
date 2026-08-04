@@ -40,6 +40,32 @@ export type RouteInput = string[] | RouteGroups;
 export type ViewportGroups = Partial<Record<Tier, Viewport[]>>;
 
 /**
+ * Detection of overflow that an ancestor **clips** rather than scrolls.
+ *
+ * The `scrollWidth` check is blind to this: if any ancestor carries
+ * `overflow-x: hidden` (or `clip`), content wider than that ancestor is cut off
+ * instead of producing a scrollbar, so `scrollWidth` never exceeds
+ * `clientWidth` and the page passes while visibly losing text.
+ *
+ * Only `hidden` and `clip` count. `auto` and `scroll` are deliberately excluded
+ * — those still let a user reach the content, so a carousel or a deliberately
+ * scrollable table is not a defect.
+ */
+export interface ClippingConfig {
+  /** Default `true`. Set `clipping: false` to turn the check off entirely. */
+  enabled?: boolean;
+  /**
+   * Which elements to check. Defaults to text-bearing block elements, where
+   * clipping actually destroys information. Widen it if you also want to catch
+   * clipped images or generic containers, at the cost of more false positives
+   * from decorative full-bleed elements.
+   */
+  selector?: string;
+  /** Extra selectors to exclude, merged with the top-level `ignore`. */
+  ignore?: string[];
+}
+
+/**
  * Form-login details. Credentials should come from environment variables —
  * never commit real ones into the config file.
  */
@@ -86,6 +112,20 @@ export interface ResponsiveConfig {
   startCommand?: string;
   /** Attach to an already-running server instead of booting one. Default: true outside CI. */
   reuseExistingServer?: boolean;
+  /**
+   * Environment overrides for the `startCommand` process, merged over
+   * `process.env` by Playwright.
+   *
+   * Agent-detection variables (see `AGENT_ENV_VARS`) are blanked by default,
+   * because several dev servers change behaviour when they think an AI agent
+   * launched them — most damagingly by forking into a background daemon, which
+   * Playwright reads as the server crashing on startup. Put one back by setting
+   * it here explicitly.
+   *
+   * `undefined` means "unset", but Playwright merges rather than replaces, so a
+   * key can only be blanked (`""`), never truly removed.
+   */
+  webServerEnv?: Record<string, string | undefined>;
 
   // ── What to check ─────────────────────────────────────────────────────
   /** Public routes: a flat list, or tier-keyed groups. */
@@ -118,6 +158,11 @@ export interface ResponsiveConfig {
    * from the offender list. See ADVANCED.md for the caveat.
    */
   ignore?: string[];
+  /**
+   * Catch overflow that an ancestor clips instead of scrolling — invisible to
+   * the `scrollWidth` check. Enabled by default; `false` turns it off.
+   */
+  clipping?: boolean | ClippingConfig;
   /** Per-check timeout in ms. Default `30000`. */
   timeout?: number;
   /** Directory for all Playwright artifacts. Default `'.playwright'`. */

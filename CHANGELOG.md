@@ -3,6 +3,67 @@
 This project is pre-1.0. Per semver, breaking changes may land in a minor
 release; they are always listed here first.
 
+## 0.4.0
+
+### Added
+
+- **Clipped-overflow detection.** The `scrollWidth` check is blind to overflow
+  that an ancestor cuts off: with `overflow-x: hidden` anywhere up the tree, a
+  child wider than that ancestor is truncated instead of scrolled, so
+  `scrollWidth` never exceeds `clientWidth` and the page passes while visibly
+  losing text. Each candidate element is now also compared against the box of
+  the nearest ancestor that clips it — the same kind of deterministic
+  measurement as the primary check, no screenshots, nothing to adjudicate.
+
+  Only `overflow-x: hidden` and `clip` count. `auto` and `scroll` are excluded
+  on purpose: that content is still reachable, so a carousel or a scrollable
+  table is not a defect.
+
+- `clippedReport()` and `DEFAULT_CLIPPING_SELECTOR` are exported for anyone
+  driving the primitives directly.
+
+- **`webServerEnv`** — environment overrides for the `startCommand` process,
+  layered over `process.env`. Set a key to `undefined` to remove it.
+
+### Changed
+
+- **Clipping detection is on by default.** It checks text-bearing block
+  elements (`h1`–`h6`, `p`, `li`, `blockquote`, `figcaption`, `table`, `pre`,
+  `dt`, `dd`) — where clipping actually destroys information — and skips
+  `div`/`span`/`a`/`img`, since a full-bleed decorative element inside an
+  `overflow-hidden` wrapper is a normal pattern rather than a bug.
+
+  **A previously green project can go red on upgrade.** That is the point: the
+  failure was always there and was invisible. To opt out, `clipping: false`; to
+  narrow it, `clipping: { selector: "h1, h2" }`; to excuse specific elements,
+  `clipping: { ignore: [".marquee"] }` or the top-level `ignore`, which it
+  inherits.
+
+- **Agent-detection environment variables are blanked for the `startCommand`
+  process.** Several dev servers change behaviour when they believe an AI agent
+  launched them — Astro 7.1+ forks into a background daemon, so the wrapper
+  exits immediately and Playwright reports `Process from config.webServer exited
+  early` even though the server is up and answering. Neutralising the signal
+  makes a run behave the same whether a human or an agent started it, which is
+  the only way the result means the same thing in both cases. The list is
+  exported as `AGENT_ENV_VARS`; put one back with
+  `webServerEnv: { CLAUDECODE: "1" }`.
+
+  They are set to `""` rather than removed, because Playwright *merges*
+  `webServer.env` over `process.env` and a key cannot be deleted from it.
+  Detection libraries treat an empty value as absent (`am-i-vibing` returns
+  `null` for `CLAUDECODE=`), and unlike `env -u` this works on Windows.
+
+  Deliberately framework-agnostic — it neutralises the signal rather than
+  special-casing any one dev server.
+
+### Fixed
+
+- Releases are now tagged `vX.Y.Z` and the tags are pushed. 0.3.2 was published
+  to npm but never pushed to GitHub, and with no tags nothing made that visible.
+  Tags were added retroactively for every published version except 0.1.1, whose
+  version bump never landed as its own commit.
+
 ## 0.3.2
 
 Documentation only — no API change, no behaviour change in the check itself.
