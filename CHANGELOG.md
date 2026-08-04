@@ -3,6 +3,31 @@
 This project is pre-1.0. Per semver, breaking changes may land in a minor
 release; they are always listed here first.
 
+## 0.4.1
+
+Both changes came out of running 0.4.0 against real projects for the first time.
+
+### Fixed
+
+- **Carousels no longer report as clipped.** Elements whose computed `position`
+  is `absolute` or `fixed` are skipped. A coverflow/slider track parks its
+  off-screen slides outside a clipping stage on purpose — that is the effect,
+  not a defect — and since sliders are usually `<ul><li>`, the default selector
+  flagged every slide at every viewport. Accidental clipping, the thing worth
+  reporting, is a flow-layout phenomenon. `sticky` stays in flow and is still
+  checked.
+
+- **Clipped text in a block-level element is now detected.** The check compared
+  an element's box against its clipping ancestor, which only catches
+  shrink-to-fit elements (flex/grid/inline-block children). A block-level `h2`
+  is always exactly as wide as its container, so `white-space: nowrap` text
+  spilling out of it never moved the element's rect and went unreported. The
+  element's own `scrollWidth` vs `clientWidth` is now considered too, skipped
+  when the element scrolls itself.
+
+  This one was found by a test written for the `position` fix above, which
+  failed for a reason unrelated to what it was testing.
+
 ## 0.4.0
 
 ### Added

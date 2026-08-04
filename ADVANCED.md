@@ -304,6 +304,18 @@ clipped actually destroys information someone needed to read.
 elements inside an `overflow-hidden` wrapper are a normal pattern, and including
 them turns the check into noise.
 
+**Absolutely-positioned and fixed elements are skipped**, whatever the selector.
+A carousel parks its off-screen slides outside a clipping stage on purpose, and
+sliders are usually `<ul><li>` — without this, every slide reports at every
+viewport. Accidental clipping is a flow-layout phenomenon. `sticky` is still in
+flow, so it is still checked.
+
+Two shapes of the failure are caught: an element whose **box** runs past the
+clipper (shrink-to-fit children of a flex/grid container), and an element whose
+box fits but whose **text** overflows it and is then clipped — a block-level
+heading is always exactly as wide as its container, so `nowrap` text spilling
+out of it never moves the element's rect.
+
 ```ts
 clipping: false,                              // off entirely
 clipping: { selector: "h1, h2" },             // narrower than the default

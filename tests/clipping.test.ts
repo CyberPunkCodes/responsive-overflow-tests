@@ -136,6 +136,37 @@ describe("clippedReport (real browser)", () => {
     expect(report.ignored).toBe(1);
   });
 
+  it("does not flag a carousel's absolutely-positioned slides", async () => {
+    // The real-world false positive this rule exists for: a coverflow carousel
+    // parks its off-centre slides outside a clipping stage on purpose.
+    await page.setContent(`
+      <div class="stage" style="position:relative; overflow:hidden; width:300px; height:200px">
+        <ul style="list-style:none; margin:0; padding:0">
+          <li style="position:absolute; left:50%; width:380px; transform:translateX(-50%)">Slide</li>
+        </ul>
+      </div>`);
+    expect((await clippedReport(page)).clipped).toEqual([]);
+  });
+
+  it("still flags in-flow text clipped inside the same kind of wrapper", async () => {
+    // Same clipping ancestor, but the heading is in normal flow — a real bug.
+    await page.setContent(`
+      <div style="position:relative; overflow:hidden; width:300px">
+        <h2 style="white-space:nowrap; font-size:40px">A heading that does not fit</h2>
+      </div>`);
+    const { clipped } = await clippedReport(page);
+    expect(clipped).toHaveLength(1);
+    expect(clipped[0].tag).toBe("h2");
+  });
+
+  it("does not skip sticky elements — they are still in flow", async () => {
+    await page.setContent(`
+      <div style="position:relative; overflow:hidden; width:300px">
+        <h2 style="position:sticky; top:0; white-space:nowrap; font-size:40px">A sticky heading that does not fit</h2>
+      </div>`);
+    expect((await clippedReport(page)).clipped).toHaveLength(1);
+  });
+
   it("does not flag decorative elements outside the default selector", async () => {
     await page.setContent(`
       <section style="overflow:hidden; display:flex; justify-content:center">

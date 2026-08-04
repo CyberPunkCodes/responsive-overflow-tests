@@ -171,31 +171,60 @@ export async function clippedReport(
         const r = el.getBoundingClientRect();
         if (r.width <= 0 || r.height <= 0) continue;
 
+        // Out-of-flow elements are placed by the author, and clipping them is
+        // usually the intent rather than the bug: carousel and slider tracks
+        // park their off-screen slides outside a clipping stage, which is the
+        // whole effect. Accidental clipping — the thing worth reporting — is a
+        // flow-layout phenomenon. `sticky` stays in flow, so it is not skipped.
+        const position = getComputedStyle(el).position;
+        if (position === "absolute" || position === "fixed") continue;
+
         const clipper = clippingAncestor(el);
         if (!clipper) continue;
 
         const c = clipper.getBoundingClientRect();
+
+        // Two ways the same failure shows up, and both are needed.
+        //
+        // 1. The element's own box runs past the clipper. Happens when the
+        //    element is shrink-to-fit — a flex/grid/inline-block child.
         const overRight = r.right - c.right;
         const overLeft = c.left - r.left;
-        if (overRight <= tolerance && overLeft <= tolerance) continue;
+        const boxOver = Math.max(overRight, overLeft);
+
+        // 2. The element's box fits, but its TEXT overflows that box and is
+        //    then clipped by the ancestor. A block-level `h2` is always exactly
+        //    as wide as its container, so `nowrap` text spilling out of it
+        //    never moves the element's rect — case 1 alone cannot see it.
+        //    Skipped when the element scrolls itself: that content is reachable.
+        const selfOverflowX = getComputedStyle(el).overflowX;
+        const selfScrolls = selfOverflowX === "auto" || selfOverflowX === "scroll";
+        const textOver = selfScrolls ? 0 : el.scrollWidth - el.clientWidth;
+
+        const over = Math.max(boxOver, textOver);
+        if (over <= tolerance) continue;
 
         if (ignoreSelectors.length > 0 && (isIgnored(el) || isIgnored(clipper))) {
           ignored++;
           continue;
         }
 
+        // Text overflow always runs to the inline end; box overflow can go
+        // either way, so report whichever side actually exceeded.
         const side =
-          overRight > tolerance && overLeft > tolerance
-            ? "both"
-            : overRight > tolerance
-              ? "right"
-              : "left";
+          boxOver >= textOver
+            ? overRight > tolerance && overLeft > tolerance
+              ? "both"
+              : overRight > tolerance
+                ? "right"
+                : "left"
+            : "right";
 
         clipped.push({
           tag: el.tagName.toLowerCase(),
           id: el.id ? `#${el.id}` : "",
           cls: (typeof el.className === "string" ? el.className : "").trim().slice(0, 80),
-          overflowPx: Math.round(Math.max(overRight, overLeft)),
+          overflowPx: Math.round(over),
           side,
           clipper: describe(clipper),
         });
